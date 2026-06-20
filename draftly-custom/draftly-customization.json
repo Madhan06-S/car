@@ -1,0 +1,21 @@
+{
+  "slug": "targo-logistics",
+  "mode": "spa",
+  "title": "Targo — Swift and Simple Transport",
+  "replacements": [],
+  "assetOverrides": [],
+  "assetSlots": [
+    {
+      "id": "hero-video-url",
+      "kind": "video",
+      "label": "HERO_VIDEO_URL",
+      "placement": "HERO_VIDEO_URL",
+      "defaultUrl": "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260227_042027_c4b2f2ea-1c7c-4d6e-9e3d-81a78063703f.mp4",
+      "sourceKey": "HERO_VIDEO_URL"
+    }
+  ],
+  "contentEdits": {},
+  "brand": {},
+  "exportedAt": "2026-06-18T09:37:43.613Z",
+  "readme": "Open index.html in a browser, or run npm install && npm run build in the preset folder. Theme and copy load from draftly-custom/."
+}
