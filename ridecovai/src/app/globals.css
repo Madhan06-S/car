@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #fafafa;
+  --primary: #EE3F2C;
+  --primary-foreground: #ffffff;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --card: #09090b;
+  --card-foreground: #fafafa;
+  --border: #27272a;
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --radius-md: var(--radius);
+  --font-sans: 'Inter', sans-serif;
+}
+
+html {
+  background-color: #000000;
+}
+
+body {
+  background: transparent;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+}
+
+/* Animations */
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes matrix-sweep {
+  0%, 100% { opacity: 0.1; box-shadow: 0 0 0 transparent; background-color: rgba(255, 255, 255, 0.1); }
+  10%, 30% { opacity: 1; box-shadow: 0 0 15px 2px rgba(255, 255, 255, 0.8), 0 0 5px 1px #fff; background-color: #ffffff; }
+  50% { opacity: 0.1; box-shadow: 0 0 0 transparent; background-color: rgba(255, 255, 255, 0.1); }
+}
+
+.animate-matrix {
+  animation: matrix-sweep 2.5s ease-in-out infinite;
+}

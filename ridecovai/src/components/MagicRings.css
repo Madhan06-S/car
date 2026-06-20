@@ -1,0 +1,14 @@
+.magic-rings-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0; /* Ensures rings appear behind headlights and other content */
+  pointer-events: none; /* Allows clicks to pass through to underlying elements if needed */
+}
+
+/* Add pointer events when we hover or want to click for click burst */
+.magic-rings-container canvas {
+  pointer-events: auto;
+}
