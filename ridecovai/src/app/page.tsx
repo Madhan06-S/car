@@ -3,8 +3,9 @@
 import { useRef, useState, useMemo, useEffect, Suspense } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, useGLTF, MeshReflectorMaterial } from '@react-three/drei';
+import { OrbitControls, Environment, ContactShadows, useGLTF, MeshReflectorMaterial, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { 
   Car, MapPin, Star, ArrowRight, Shield, 
   Clock, Gauge, Users, Fuel, Navigation, CheckCircle2, Zap, Phone, Flame, Palette, Calendar, User
@@ -43,52 +44,72 @@ const carColors = [
   { name: 'Champagne Gold', color: '#c9a961', metalness: 0.95, roughness: 0.05 },
 ];
 
-function RealCar3D({ scrollProgress, carColor, onLoadError }: { scrollProgress: number; carColor: any; onLoadError: () => void }) {
+function RealCar3D({ scrollProgress, carColor }: { scrollProgress: number; carColor: any }) {
   const groupRef = useRef<THREE.Group>(null);
-  const [clonedScene, setClonedScene] = useState<THREE.Group | null>(null);
-  
-  const gltf = useGLTF('/models/toyota_fortuner_2021.glb', true);
-  
+  const [modelScene, setModelScene] = useState<THREE.Group | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
-    if (gltf && gltf.scene) {
-      try {
-        const clone = gltf.scene.clone();
-        clone.traverse((child: any) => {
-          if (child.isMesh && child.material) {
-            child.material = child.material.clone();
-          }
-        });
-        setClonedScene(clone);
-      } catch (err) {
-        console.error('Error cloning model:', err);
-        onLoadError();
+    let isMounted = true;
+    const loader = new GLTFLoader();
+
+    loader.load(
+      '/models/toyota_fortuner_2021.glb',
+      (gltf) => {
+        if (!isMounted) return;
+        const scene = gltf.scene;
+
+        const box = new THREE.Box3().setFromObject(scene);
+        const center = box.getCenter(new THREE.Vector3());
+        scene.position.set(-center.x, -box.min.y, -center.z);
+
+        setModelScene(scene);
+      },
+      (xhr) => {
+        if (isMounted && xhr.total > 0) {
+          setLoadingProgress(Math.round((xhr.loaded / xhr.total) * 100));
+        } else if (isMounted) {
+          setLoadingProgress((prev) => Math.min(prev + 5, 95));
+        }
+      },
+      (error) => {
+        console.error('Failed to load 3D GLB model:', error);
+        if (isMounted) setLoadError('Model load timeout/error');
       }
-    }
-  }, [gltf, onLoadError]);
-  
+    );
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   useFrame((state) => {
     if (groupRef.current) {
       const time = state.clock.elapsedTime;
-      groupRef.current.position.y = Math.sin(time * 0.8) * 0.08 - 0.1;
-      groupRef.current.rotation.z = Math.sin(time * 0.5) * 0.015;
-      groupRef.current.rotation.x = Math.sin(time * 0.3) * 0.01;
+      groupRef.current.position.y = Math.sin(time * 0.8) * 0.04 - 0.75;
+      groupRef.current.rotation.z = Math.sin(time * 0.5) * 0.01;
+      groupRef.current.rotation.x = Math.sin(time * 0.3) * 0.005;
       groupRef.current.rotation.y = scrollProgress * Math.PI * 2 + time * 0.05;
     }
   });
-  
+
   useEffect(() => {
-    if (!clonedScene) return;
-    clonedScene.traverse((child: any) => {
+    if (!modelScene) return;
+    modelScene.traverse((child: any) => {
       if (child.isMesh && child.material) {
-        const matName = child.material.name?.toLowerCase() || '';
+        const matName = (child.material.name || child.name || '').toLowerCase();
         const isBodyMaterial = 
-          matName.includes('paint') || matName.includes('body') || matName.includes('car') || 
-          matName.includes('exterior') || matName.includes('shell') || matName.includes('color') ||
-          matName.includes('main') || matName.includes('surface') || matName.includes('material_0') ||
-          matName.includes('body_color') || matName.includes('carpaint') || matName.includes('car_paint') ||
-          matName.includes('paint_');
+          matName.includes('carpaint') || matName.includes('paint') || matName.includes('body') || 
+          matName.includes('car') || matName.includes('exterior') || matName.includes('shell') || 
+          matName.includes('color') || matName.includes('main') || matName.includes('surface') || 
+          matName.includes('material_0') || matName.includes('body_color') || matName.includes('object023');
           
         if (isBodyMaterial) {
+          if (!child.userData.clonedMat) {
+            child.material = child.material.clone();
+            child.userData.clonedMat = true;
+          }
           child.material.color = new THREE.Color(carColor.color);
           child.material.metalness = carColor.metalness;
           child.material.roughness = carColor.roughness;
@@ -96,120 +117,37 @@ function RealCar3D({ scrollProgress, carColor, onLoadError }: { scrollProgress: 
         }
       }
     });
-  }, [carColor, clonedScene]);
+  }, [carColor, modelScene]);
 
-  if (!clonedScene) return null;
+  if (loadError) {
+    return (
+      <Html center>
+        <div className="bg-black/90 p-4 rounded-xl border border-red-500/50 text-red-400 text-sm font-semibold">
+          ⚠️ 3D Model Notice: {loadError}
+        </div>
+      </Html>
+    );
+  }
+
+  if (!modelScene) {
+    return (
+      <Html center>
+        <div className="flex flex-col items-center justify-center p-5 bg-black/85 backdrop-blur-md rounded-2xl border border-red-500/40 text-white min-w-[220px] shadow-2xl">
+          <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <p className="text-sm font-semibold tracking-wide text-gray-200">Loading 3D Fortuner</p>
+          <p className="text-xs text-red-400 font-mono mt-1 font-bold">{loadingProgress}%</p>
+        </div>
+      </Html>
+    );
+  }
 
   return (
-    <group ref={groupRef} position={[0, -0.3, 0]} scale={1.65}>
-      <primitive object={clonedScene} />
+    <group ref={groupRef} position={[0, -0.75, 0]} scale={0.85}>
+      <primitive object={modelScene} />
     </group>
   );
 }
 
-useGLTF.preload('/models/toyota_fortuner_2021.glb');
-
-function FallbackCar3D({ scrollProgress, carColor }: { scrollProgress: number; carColor: any }) {
-  const meshRef = useRef<THREE.Group>(null);
-  const wheelRefs = useRef<THREE.Group[]>([]);
-  
-  useFrame((state) => {
-    if (meshRef.current) {
-      const time = state.clock.elapsedTime;
-      meshRef.current.position.y = Math.sin(time * 0.8) * 0.05;
-      meshRef.current.rotation.z = Math.sin(time * 0.5) * 0.01;
-      meshRef.current.rotation.x = Math.sin(time * 0.3) * 0.005;
-      meshRef.current.rotation.y = scrollProgress * Math.PI * 2 + time * 0.05;
-    }
-  });
-
-  const bodyMaterial = useMemo(() => new THREE.MeshStandardMaterial({
-    color: carColor.color,
-    metalness: carColor.metalness,
-    roughness: carColor.roughness,
-  }), [carColor]);
-
-  const glassMaterial = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#1a1a2e',
-    metalness: 0.95,
-    roughness: 0.02,
-    transparent: true,
-    opacity: 0.4,
-  }), []);
-
-  const chromeMaterial = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#e8e8e8',
-    metalness: 1.0,
-    roughness: 0.0,
-  }), []);
-
-  return (
-    <group ref={meshRef} position={[0, -0.2, 0]} scale={1.3}>
-      <mesh position={[0, 0.3, 0]} castShadow material={bodyMaterial}>
-        <boxGeometry args={[2.8, 0.5, 1.2]} />
-      </mesh>
-      <mesh position={[0.95, 0.38, 0]} rotation={[0, 0, -0.12]} castShadow material={bodyMaterial}>
-        <boxGeometry args={[1.0, 0.12, 1.15]} />
-      </mesh>
-      <mesh position={[-0.9, 0.35, 0]} rotation={[0, 0, 0.08]} castShadow material={bodyMaterial}>
-        <boxGeometry args={[0.85, 0.1, 1.15]} />
-      </mesh>
-      <mesh position={[0.05, 0.68, 0]} castShadow material={glassMaterial}>
-        <boxGeometry args={[1.35, 0.42, 1.0]} />
-      </mesh>
-      {[
-        { x: 0.9, z: 0.55 }, { x: 0.9, z: -0.55 },
-        { x: -0.9, z: 0.55 }, { x: -0.9, z: -0.55 }
-      ].map((pos, i) => (
-        <group key={i} position={[pos.x, 0, pos.z]} ref={(el) => { if (el) wheelRefs.current[i] = el; }}>
-          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-            <torusGeometry args={[0.22, 0.075, 24, 48]} />
-            <meshStandardMaterial color="#1a1a1a" metalness={0.3} roughness={0.9} />
-          </mesh>
-          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[0.17, 0.17, 0.14, 24]} />
-            <meshStandardMaterial color="#c0c0c0" metalness={1.0} roughness={0.0} />
-          </mesh>
-        </group>
-      ))}
-      <mesh position={[1.38, 0.35, 0.32]} rotation={[0, 0.25, 0]} material={chromeMaterial}>
-        <boxGeometry args={[0.04, 0.14, 0.18]} />
-      </mesh>
-      <mesh position={[1.38, 0.35, -0.32]} rotation={[0, -0.25, 0]} material={chromeMaterial}>
-        <boxGeometry args={[0.04, 0.14, 0.18]} />
-      </mesh>
-      <mesh position={[1.39, 0.35, 0.32]} rotation={[0, 0.25, 0]}>
-        <boxGeometry args={[0.02, 0.12, 0.16]} />
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={4} />
-      </mesh>
-      <mesh position={[1.39, 0.35, -0.32]} rotation={[0, -0.25, 0]}>
-        <boxGeometry args={[0.02, 0.12, 0.16]} />
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={4} />
-      </mesh>
-      <mesh position={[-1.41, 0.38, 0.35]}>
-        <boxGeometry args={[0.02, 0.14, 0.2]} />
-        <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={5} />
-      </mesh>
-      <mesh position={[-1.41, 0.38, -0.35]}>
-        <boxGeometry args={[0.02, 0.14, 0.2]} />
-        <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={5} />
-      </mesh>
-      <mesh position={[-1.41, 0.42, 0]}>
-        <boxGeometry args={[0.015, 0.02, 0.5]} />
-        <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={4} />
-      </mesh>
-      <mesh position={[1.39, 0.22, 0]} material={bodyMaterial}>
-        <boxGeometry args={[0.03, 0.22, 0.65]} />
-      </mesh>
-      <mesh position={[1.38, 0.12, 0]} castShadow material={bodyMaterial}>
-        <boxGeometry args={[0.12, 0.18, 1.18]} />
-      </mesh>
-      <mesh position={[-1.38, 0.12, 0]} castShadow material={bodyMaterial}>
-        <boxGeometry args={[0.12, 0.18, 1.18]} />
-      </mesh>
-    </group>
-  );
-}
 
 function ReflectiveGround() {
   return (
@@ -461,40 +399,36 @@ export default function Home() {
         <div className="absolute inset-0 z-0">
           {!canvasError ? (
             <Canvas 
-              shadows 
-              camera={{ position: [6, 3, 7], fov: 35 }}
+              camera={{ position: [5.5, 2.5, 6.5], fov: 35 }}
+              gl={{ powerPreference: 'high-performance', antialias: true }}
+              onCreated={({ gl }) => {
+                gl.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+              }}
               onError={() => setCanvasError(true)}
             >
-              <ambientLight intensity={0.2} />
-              <spotLight position={[8, 12, 8]} angle={0.3} penumbra={0.8} intensity={2.5} castShadow color="#fff5e6" />
-              <pointLight position={[-8, 4, -8]} intensity={1.5} color="#aaddff" />
-              <pointLight position={[0, -2, 0]} intensity={0.8} color="#ff2d2d" />
-              <pointLight position={[3, 1, 0]} intensity={0.5} color="#ffffff" />
+              <ambientLight intensity={0.6} />
+              <directionalLight position={[10, 15, 10]} intensity={1.5} color="#ffffff" />
+              <spotLight position={[8, 12, 8]} angle={0.4} penumbra={0.8} intensity={2.0} color="#fff5e6" />
+              <pointLight position={[-8, 4, -8]} intensity={1.2} color="#aaddff" />
+              <pointLight position={[0, -2, 0]} intensity={0.6} color="#ff2d2d" />
               
-              <Suspense fallback={null}>
-                {useRealModel && !modelFailed ? (
-                  <RealCar3D 
-                    scrollProgress={carRotate.get()} 
-                    carColor={selectedColor} 
-                    onLoadError={handleModelError}
-                  />
-                ) : (
-                  <FallbackCar3D scrollProgress={carRotate.get()} carColor={selectedColor} />
-                )}
-              </Suspense>
+              <RealCar3D 
+                scrollProgress={carRotate.get()} 
+                carColor={selectedColor} 
+              />
               
               <AntiGravityParticles />
               <ReflectiveGround />
-              <ContactShadows position={[0, -0.79, 0]} opacity={0.5} scale={20} blur={2.5} far={4} />
-              <Environment preset="night" />
+              <ContactShadows position={[0, -0.76, 0]} opacity={0.6} scale={15} blur={2} far={4} />
+              <Environment preset="city" />
               
               <OrbitControls 
                 enableZoom={false} 
                 enablePan={false} 
                 autoRotate 
-                autoRotateSpeed={0.2}
-                maxPolarAngle={Math.PI / 2.2}
-                minPolarAngle={Math.PI / 3}
+                autoRotateSpeed={0.3}
+                maxPolarAngle={Math.PI / 2.1}
+                minPolarAngle={Math.PI / 3.5}
               />
             </Canvas>
           ) : (
@@ -527,16 +461,6 @@ export default function Home() {
             ))}
           </div>
           <div className="text-[10px] text-gray-500 text-right">{selectedColor.name}</div>
-          
-          <button 
-            onClick={() => {
-              setUseRealModel(!useRealModel);
-              setModelFailed(false);
-            }}
-            className="mt-2 text-[10px] text-gray-500 hover:text-white transition-colors border border-white/10 rounded px-2 py-1"
-          >
-            {useRealModel && !modelFailed ? 'Using Real Model (Fortuner)' : 'Using Fallback Model'}
-          </button>
         </div>
 
         <div className="relative z-10 text-center px-4 pointer-events-none w-full max-w-4xl mx-auto">
